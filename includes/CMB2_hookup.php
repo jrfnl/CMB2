@@ -14,13 +14,6 @@
 class CMB2_hookup {
 
 	/**
-	 * Array of all hooks done (to be run once)
-	 * @var   array
-	 * @since 2.0.0
-	 */
-	protected static $hooks_completed = array();
-
-	/**
 	 * Only allow JS registration once
 	 * @var   bool
 	 * @since 2.0.7
@@ -77,14 +70,23 @@ class CMB2_hookup {
 	}
 
 	public function universal_hooks() {
+
 		foreach ( get_class_methods( 'CMB2_Show_Filters' ) as $filter ) {
 			add_filter( 'cmb2_show_on', array( 'CMB2_Show_Filters', $filter ), 10, 3 );
 		}
 
-		if ( is_admin() ) {
-			// register our scripts and styles for cmb
-			$this->once( 'admin_enqueue_scripts', array( __CLASS__, 'register_scripts' ), 8 );
+		// @todo change this to a return true on the register functions
+		if ( is_admin() && false === has_filter( 'admin_enqueue_scripts', array( __CLASS__, 'register_scripts' ) ) ) {
+			// Register our scripts and styles for cmb
+			add_action( 'admin_enqueue_scripts', array( __CLASS__, 'register_scripts' ), 8 );
 		}
+
+		$hook = is_admin() ? 'admin_footer' : 'wp_footer';
+		if ( false === has_filter( $hook, array( __CLASS__, 'enqueue_styles' ) ) ) {
+			// Late enqueue our styles for cmb
+			add_action( $hook, array( __CLASS__, 'enqueue_styles' ), 8 );
+		}
+
 	}
 
 	public function post_hooks() {
@@ -92,15 +94,15 @@ class CMB2_hookup {
 		add_action( 'add_attachment', array( $this, 'save_post' ) );
 		add_action( 'edit_attachment', array( $this, 'save_post' ) );
 		add_action( 'save_post', array( $this, 'save_post' ), 10, 2 );
-
-		$this->once( 'admin_enqueue_scripts', array( $this, 'do_scripts' ) );
+		add_filter( 'cmb2_enqueue_css', array( $this, 'maybe_do_styles' ) );
+		add_filter( 'cmb2_enqueue_js', array( $this, 'maybe_do_scripts' ) );
 	}
 
 	public function comment_hooks() {
 		add_action( 'add_meta_boxes_comment', array( $this, 'add_metaboxes' ) );
 		add_action( 'edit_comment', array( $this, 'save_comment' ) );
-
-		$this->once( 'admin_enqueue_scripts', array( $this, 'do_scripts' ) );
+		add_filter( 'cmb2_enqueue_css', array( $this, 'maybe_do_styles' ) );
+		add_filter( 'cmb2_enqueue_js', array( $this, 'maybe_do_scripts' ) );
 	}
 
 	public function user_hooks() {
@@ -173,6 +175,17 @@ class CMB2_hookup {
 	}
 
 	/**
+	 * Late enqueue styles for CMB2.
+	 * @since 2.1.x
+	 */
+	public static function enqueue_styles() {
+		if ( true !== apply_filters( 'cmb2_enqueue_css', false ) ) {
+			return false;
+		}
+		wp_enqueue_style( 'cmb2-styles' );
+	}
+
+	/**
 	 * Registers scripts for CMB2
 	 * @since  2.0.7
 	 */
@@ -197,20 +210,62 @@ class CMB2_hookup {
 	}
 
 	/**
-	 * Enqueues scripts and styles for CMB2
-	 * @since  1.0.0
+	 * Determine whether or not to load the styles for CMB2.
+	 * @since  2.1.x
+	 * @param bool $should_load Whether or not our styles should be loaded.
+	 * @return bool
 	 */
-	public function do_scripts( $hook ) {
-		// only enqueue our scripts/styles on the proper pages
-		if ( in_array( $hook, array( 'post.php', 'post-new.php', 'page-new.php', 'page.php', 'comment.php' ), true ) ) {
-			if ( $this->cmb->prop( 'cmb_styles' ) ) {
-				self::enqueue_cmb_css();
-			}
-			if ( $this->cmb->prop( 'enqueue_js' ) ) {
-				self::enqueue_cmb_js();
-			}
+	public function maybe_do_styles( $should_load ) {
+		// only enqueue our styles on the proper pages
+		if ( $this->is_edit_page() && $this->cmb->prop( 'cmb_styles' ) ) {
+			$should_load = true;
 		}
+		return $should_load;
 	}
+
+	/**
+	 * Determine whether or not to load the scripts for CMB2.
+	 * @since  2.1.x
+	 * @param bool $should_load Whether or not our styles should be loaded.
+	 * @return bool
+	 */
+	public function maybe_do_scripts( $should_load ) {
+		// only enqueue our scripts on the proper pages
+		if ( $this->is_edit_page() && $this->cmb->prop( 'enqueue_js' ) ) {
+			$should_load = true;
+		}
+		return $should_load;
+	}
+
+	/**
+	 * Are we on a add new/edit post/comment page ?
+	 *
+	 * @return bool
+	 */
+	protected function is_edit_page() {
+		static $is_edit_page;
+
+		if ( isset( $is_edit_page ) ) {
+			return $is_edit_page;
+		}
+
+		$screen = get_current_screen();
+// @todo change this back to using parent_base as this is now called on footer and therefore should be available.
+		if ( ! property_exists( $screen, 'base' ) || ! property_exists( $screen, 'post_type' ) ) {
+			$is_edit_page = false;
+			return $is_edit_page;
+		}
+
+		// Only enqueue our scripts/styles on the proper pages.
+		if ( ( 'post' === $screen->base && ( is_string( $screen->post_type ) && '' !== $screen->post_type ) ) ||
+			'comment' === $screen->base ) {
+			$is_edit_page = true;
+			return $is_edit_page;
+		}
+
+		return $is_edit_page;
+	}
+
 
 	/**
 	 * Add metaboxes (to 'post' or 'comment' object types)
@@ -307,10 +362,10 @@ class CMB2_hookup {
 		}
 
 		if ( $this->cmb->prop( 'cmb_styles' ) ) {
-			self::enqueue_cmb_css();
+			add_filter( 'cmb2_enqueue_css', '__return_true' );
 		}
 		if ( $this->cmb->prop( 'enqueue_js' ) ) {
-			self::enqueue_cmb_js();
+			add_filter( 'cmb2_enqueue_js', '__return_true' );
 		}
 
 		$this->cmb->show_form( 0, $type );
@@ -497,50 +552,4 @@ class CMB2_hookup {
 
 		return true;
 	}
-
-	/**
-	 * Ensures WordPress hook only gets fired once
-	 * @since  2.0.0
-	 * @param string   $action        The name of the filter to hook the $hook callback to.
-	 * @param callback $hook          The callback to be run when the filter is applied.
-	 * @param integer  $priority      Order the functions are executed
-	 * @param int      $accepted_args The number of arguments the function accepts.
-	 */
-	public function once( $action, $hook, $priority = 10, $accepted_args = 1 ) {
-		$key = md5( serialize( func_get_args() ) );
-
-		if ( in_array( $key, self::$hooks_completed ) ) {
-			return;
-		}
-
-		self::$hooks_completed[] = $key;
-		add_filter( $action, $hook, $priority, $accepted_args );
-	}
-
-	/**
-	 * Includes CMB2 styles
-	 * @since  2.0.0
-	 */
-	public static function enqueue_cmb_css() {
-		if ( ! apply_filters( 'cmb2_enqueue_css', true ) ) {
-			return false;
-		}
-
-		self::register_styles();
-		return wp_enqueue_style( 'cmb2-styles' );
-	}
-
-	/**
-	 * Includes CMB2 JS
-	 * @since  2.0.0
-	 */
-	public static function enqueue_cmb_js() {
-		if ( ! apply_filters( 'cmb2_enqueue_js', true ) ) {
-			return false;
-		}
-
-		self::register_js();
-		return true;
-	}
-
 }

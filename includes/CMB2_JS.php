@@ -47,6 +47,10 @@ class CMB2_JS {
 	 * @since  2.0.7
 	 */
 	public static function enqueue() {
+		if ( false === apply_filters( 'cmb2_enqueue_js', false ) ) {
+			return;
+		}
+
 		// Filter required script dependencies
 		$dependencies = apply_filters( 'cmb2_script_dependencies', self::$dependencies );
 
