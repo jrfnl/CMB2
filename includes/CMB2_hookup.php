@@ -252,14 +252,17 @@ class CMB2_hookup {
 		}
 
 		$screen = get_current_screen();
-// @todo change this back to using parent_base as this is now called on footer and therefore should be available.
-		if ( ! property_exists( $screen, 'base' ) || ! property_exists( $screen, 'post_type' ) ) {
-			$is_edit_page = false;
-		}
 
 		// Only enqueue our scripts/styles on the proper pages.
-		else if ( ( 'post' === $screen->base && ( is_string( $screen->post_type ) && '' !== $screen->post_type ) ) ||
-			'comment' === $screen->base ) {
+		if ( ! property_exists( $screen, 'base' ) || ! property_exists( $screen, 'parent_base' ) ) {
+			$is_edit_page = false;
+		}
+		// Post type edit pages
+		else if ( 'post' === $screen->base && 'edit' === $screen->parent_base ) {
+			$is_edit_page = true;
+		}
+		// Comment edit pages
+		else if ( 'comment' === $screen->base && 'edit-comments' === $screen->parent_base ) {
 			$is_edit_page = true;
 		}
 
