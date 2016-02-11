@@ -1,0 +1,6 @@
+* Check if - when no fields are added to comments - the styles & scripts load.
+If so:
+- make the cmb2_enqueue_css/js filters object type specific
+- potentially wrap them in has_filter checks
+- do the 'are we on a relevant page' check in the actual function for enqueueing (see conditionals)
+- and apply the filter based on the type of edit page/object (see conditionals)
