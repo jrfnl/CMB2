@@ -94,6 +94,7 @@ class CMB2_hookup {
 		add_action( 'add_attachment', array( $this, 'save_post' ) );
 		add_action( 'edit_attachment', array( $this, 'save_post' ) );
 		add_action( 'save_post', array( $this, 'save_post' ), 10, 2 );
+
 		add_filter( 'cmb2_enqueue_css', array( $this, 'maybe_do_styles' ) );
 		add_filter( 'cmb2_enqueue_js', array( $this, 'maybe_do_scripts' ) );
 	}
@@ -101,6 +102,7 @@ class CMB2_hookup {
 	public function comment_hooks() {
 		add_action( 'add_meta_boxes_comment', array( $this, 'add_metaboxes' ) );
 		add_action( 'edit_comment', array( $this, 'save_comment' ) );
+
 		add_filter( 'cmb2_enqueue_css', array( $this, 'maybe_do_styles' ) );
 		add_filter( 'cmb2_enqueue_js', array( $this, 'maybe_do_scripts' ) );
 	}
@@ -253,14 +255,12 @@ class CMB2_hookup {
 // @todo change this back to using parent_base as this is now called on footer and therefore should be available.
 		if ( ! property_exists( $screen, 'base' ) || ! property_exists( $screen, 'post_type' ) ) {
 			$is_edit_page = false;
-			return $is_edit_page;
 		}
 
 		// Only enqueue our scripts/styles on the proper pages.
-		if ( ( 'post' === $screen->base && ( is_string( $screen->post_type ) && '' !== $screen->post_type ) ) ||
+		else if ( ( 'post' === $screen->base && ( is_string( $screen->post_type ) && '' !== $screen->post_type ) ) ||
 			'comment' === $screen->base ) {
 			$is_edit_page = true;
-			return $is_edit_page;
 		}
 
 		return $is_edit_page;
